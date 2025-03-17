@@ -1,0 +1,26 @@
+# Virtual environment
+venv/
+
+# VS Code settings
+.vscode/
+**/.vscode/
+
+# Python cache files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Logs
+*.log
+
+# Local environment variables
+.env
+
+# Jupyter Notebook
+.ipynb_checkpoints
