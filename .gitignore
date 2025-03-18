@@ -24,3 +24,5 @@ build/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+
+CLAUDE.md
