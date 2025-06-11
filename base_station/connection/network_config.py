@@ -4,8 +4,8 @@ Import this file in other Python files to ensure consistent network settings.
 """
 
 # IP Addresses
-DRONE_IP = "10.0.0.29"       # IP address of the drone/simulator
-CONTROL_STATION_IP = "10.0.0.20"  # IP address of the control station
+DRONE_IP = "10.0.0.5"       # IP address of the drone/simulator
+CONTROL_STATION_IP = "10.0.0.3"  # IP address of the control station
 
 # Ports
 COMMAND_PORT = 8889         # Port for sending commands to the drone

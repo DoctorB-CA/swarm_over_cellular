@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from PyQt5.QtWidgets import QApplication
 
 # Then import OpenCV
-import cv2  
+import cv2
 
 # Finally import our application
 from gui import DroneGUIController

@@ -4,7 +4,7 @@ from PyQt5.QtCore import QTimer
 
 from base_station.connection.drone_comm import DroneComm
 from .gui_components import (
-    VideoFeedWidget, ConnectionWidget, TelemetryWidget,
+    VideoFeedWidget, ConnectionWidget,
     FlightControlsWidget, AdvancedControlsWidget
 )
 
@@ -18,20 +18,8 @@ class DroneGUIController(QMainWindow):
         self.drone_comm = DroneComm()
         
         # Connect signals from communication layer
-        self.drone_comm.telemetry_received.connect(self.handle_telemetry)
         self.drone_comm.video_frame_received.connect(self.handle_video_frame)
         self.drone_comm.connection_status_changed.connect(self.handle_connection_status)
-        
-        # Last received telemetry for UI updates
-        self.last_telemetry = {
-            "battery": 0,
-            "altitude": 0,
-            "speed": 0,
-            "x_position": 0,
-            "y_position": 0,
-            "is_flying": False,
-            "timestamp": 0
-        }
         
         # Initialize UI components
         self.init_ui()
@@ -62,11 +50,8 @@ class DroneGUIController(QMainWindow):
         left_panel.addWidget(self.video_widget.get_widget(), 4)
         left_panel.addWidget(self.connection_widget.get_widget(), 1)
         
-        # Create right panel (controls + telemetry)
+        # Create right panel (controls only)
         right_panel = QVBoxLayout()
-        
-        # Telemetry display
-        self.telemetry_widget = TelemetryWidget(self)
         
         # Flight controls
         self.flight_controls = FlightControlsWidget(
@@ -79,7 +64,6 @@ class DroneGUIController(QMainWindow):
         )
         
         # Add to right panel
-        right_panel.addWidget(self.telemetry_widget.get_widget())
         right_panel.addWidget(self.flight_controls.get_widget())
         right_panel.addWidget(self.advanced_controls.get_widget())
         
@@ -130,14 +114,6 @@ class DroneGUIController(QMainWindow):
     def handle_connection_status(self, connected, message):
         """Handle connection status changes"""
         self.connection_widget.update_status(connected, message)
-    
-    def handle_telemetry(self, telemetry):
-        """Handle incoming telemetry data"""
-        # Save the telemetry for UI updates
-        self.last_telemetry = telemetry
-        
-        # Update the telemetry display
-        self.telemetry_widget.update(telemetry)
     
     def handle_video_frame(self, frame):
         """Handle incoming video frames"""

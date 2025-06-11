@@ -126,56 +126,6 @@ class ConnectionWidget:
             self.status_label.setStyleSheet("color: red;")
 
 
-class TelemetryWidget:
-    """Widget for displaying drone telemetry data"""
-    
-    def __init__(self, parent):
-        self.group = QGroupBox("Telemetry", parent)
-        layout = QGridLayout()
-        
-        # Battery
-        layout.addWidget(QLabel("Battery:"), 0, 0)
-        self.battery_bar = QProgressBar()
-        self.battery_bar.setValue(0)
-        layout.addWidget(self.battery_bar, 0, 1)
-        
-        # Speed
-        layout.addWidget(QLabel("Speed:"), 1, 0)
-        self.speed_label = QLabel("0 cm/s")
-        layout.addWidget(self.speed_label, 1, 1)
-        
-        # Altitude
-        layout.addWidget(QLabel("Altitude:"), 2, 0)
-        self.altitude_label = QLabel("0 cm")
-        layout.addWidget(self.altitude_label, 2, 1)
-        
-        # Position
-        layout.addWidget(QLabel("Position:"), 3, 0)
-        self.position_label = QLabel("(0, 0)")
-        layout.addWidget(self.position_label, 3, 1)
-        
-        # Flight status
-        layout.addWidget(QLabel("Status:"), 4, 0)
-        self.status_label = QLabel("Landed")
-        layout.addWidget(self.status_label, 4, 1)
-        
-        self.group.setLayout(layout)
-    
-    def get_widget(self):
-        return self.group
-    
-    def update(self, telemetry):
-        """Update the telemetry display with new data"""
-        self.battery_bar.setValue(int(telemetry.get("battery", 0)))
-        self.speed_label.setText(f"{telemetry.get('speed', 0):.1f} cm/s")
-        self.altitude_label.setText(f"{telemetry.get('altitude', 0)} cm")
-        self.position_label.setText(
-            f"({telemetry.get('x_position', 0)}, {telemetry.get('y_position', 0)})")
-        
-        is_flying = telemetry.get("is_flying", False)
-        self.status_label.setText("Flying" if is_flying else "Landed")
-
-
 class FlightControlsWidget:
     """Widget containing flight control buttons"""
     
