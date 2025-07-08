@@ -19,6 +19,15 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Get the original user (the one who ran sudo)
+ORIGINAL_USER=${SUDO_USER:-$(logname 2>/dev/null || echo $USER)}
+if [ -z "$ORIGINAL_USER" ] || [ "$ORIGINAL_USER" = "root" ]; then
+    echo "Warning: Could not determine original user. Defaulting to 'pi'"
+    ORIGINAL_USER="pi"
+fi
+
+echo "Setting up for user: $ORIGINAL_USER"
+
 # Update system
 echo "Updating system packages..."
 apt update && apt upgrade -y
@@ -57,11 +66,11 @@ $APP_DIR/venv/bin/pip install --upgrade pip
 # Create log directory
 echo "Creating log directory..."
 mkdir -p /var/log/drone_relay
-chown pi:pi /var/log/drone_relay
+chown $ORIGINAL_USER:$ORIGINAL_USER /var/log/drone_relay
 
 # Create systemd service file
 echo "Creating systemd service..."
-cat > /etc/systemd/system/drone-relay.service << 'EOF'
+cat > /etc/systemd/system/drone-relay.service << EOF
 [Unit]
 Description=Drone Communication Relay
 After=network.target
@@ -69,8 +78,8 @@ Wants=network.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
+User=$ORIGINAL_USER
+Group=$ORIGINAL_USER
 WorkingDirectory=/opt/drone_relay
 ExecStart=/opt/drone_relay/venv/bin/python /opt/drone_relay/drone_relay.py
 Restart=always
@@ -88,7 +97,7 @@ EOF
 
 # Create log rotation configuration
 echo "Setting up log rotation..."
-cat > /etc/logrotate.d/drone-relay << 'EOF'
+cat > /etc/logrotate.d/drone-relay << EOF
 /var/log/drone_relay.log {
     daily
     missingok
@@ -97,13 +106,13 @@ cat > /etc/logrotate.d/drone-relay << 'EOF'
     delaycompress
     notifempty
     copytruncate
-    su pi pi
+    su $ORIGINAL_USER $ORIGINAL_USER
 }
 EOF
 
 # Set proper permissions
 echo "Setting permissions..."
-chown -R pi:pi $APP_DIR
+chown -R $ORIGINAL_USER:$ORIGINAL_USER $APP_DIR
 chmod +x $APP_DIR/drone_relay.py
 
 # Create configuration backup
@@ -119,7 +128,7 @@ systemctl enable drone-relay.service
 echo "Creating management scripts..."
 
 # Start script
-cat > /home/pi/start_drone_relay.sh << 'EOF'
+cat > /home/$ORIGINAL_USER/start_drone_relay.sh << 'EOF'
 #!/bin/bash
 echo "Starting drone relay service..."
 sudo systemctl start drone-relay.service
@@ -128,7 +137,7 @@ sudo systemctl status drone-relay.service
 EOF
 
 # Stop script
-cat > /home/pi/stop_drone_relay.sh << 'EOF'
+cat > /home/$ORIGINAL_USER/stop_drone_relay.sh << 'EOF'
 #!/bin/bash
 echo "Stopping drone relay service..."
 sudo systemctl stop drone-relay.service
@@ -136,7 +145,7 @@ sudo systemctl status drone-relay.service
 EOF
 
 # Status script
-cat > /home/pi/check_drone_relay.sh << 'EOF'
+cat > /home/$ORIGINAL_USER/check_drone_relay.sh << 'EOF'
 #!/bin/bash
 echo "=== Drone Relay Status ==="
 sudo systemctl status drone-relay.service
@@ -156,7 +165,7 @@ top -bn1 | head -5
 EOF
 
 # Log viewer script
-cat > /home/pi/view_drone_logs.sh << 'EOF'
+cat > /home/$ORIGINAL_USER/view_drone_logs.sh << 'EOF'
 #!/bin/bash
 echo "=== Live Drone Relay Logs ==="
 echo "Press Ctrl+C to exit"
@@ -164,7 +173,7 @@ sudo journalctl -u drone-relay.service -f
 EOF
 
 # Configuration editor script
-cat > /home/pi/edit_drone_config.sh << 'EOF'
+cat > /home/$ORIGINAL_USER/edit_drone_config.sh << 'EOF'
 #!/bin/bash
 echo "Opening drone relay configuration..."
 echo "Remember to restart the service after making changes!"
@@ -174,11 +183,11 @@ echo "Restart service with: sudo systemctl restart drone-relay.service"
 EOF
 
 # Make scripts executable
-chmod +x /home/pi/*.sh
-chown pi:pi /home/pi/*.sh
+chmod +x /home/$ORIGINAL_USER/*.sh
+chown $ORIGINAL_USER:$ORIGINAL_USER /home/$ORIGINAL_USER/*.sh
 
 # Create network configuration helper
-cat > /home/pi/configure_network.sh << 'EOF'
+cat > /home/$ORIGINAL_USER/configure_network.sh << 'EOF'
 #!/bin/bash
 echo "=== Network Configuration Helper ==="
 echo ""
@@ -204,8 +213,8 @@ echo "After editing, restart networking:"
 echo "sudo systemctl restart dhcpcd"
 EOF
 
-chmod +x /home/pi/configure_network.sh
-chown pi:pi /home/pi/configure_network.sh
+chmod +x /home/$ORIGINAL_USER/configure_network.sh
+chown $ORIGINAL_USER:$ORIGINAL_USER /home/$ORIGINAL_USER/configure_network.sh
 
 # Install network monitoring tools
 echo "Installing network monitoring tools..."
@@ -216,7 +225,7 @@ echo "Enabling IP forwarding..."
 echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
 
 # Create firewall rules script
-cat > /home/pi/setup_firewall.sh << 'EOF'
+cat > /home/$ORIGINAL_USER/setup_firewall.sh << 'EOF'
 #!/bin/bash
 echo "Setting up basic firewall rules for drone relay..."
 
@@ -246,13 +255,13 @@ echo "sudo apt install iptables-persistent"
 echo "sudo netfilter-persistent save"
 EOF
 
-chmod +x /home/pi/setup_firewall.sh
-chown pi:pi /home/pi/setup_firewall.sh
+chmod +x /home/$ORIGINAL_USER/setup_firewall.sh
+chown $ORIGINAL_USER:$ORIGINAL_USER /home/$ORIGINAL_USER/setup_firewall.sh
 
 echo ""
 echo "=== Installation Complete ==="
 echo ""
-echo "Management scripts created in /home/pi/:"
+echo "Management scripts created in /home/$ORIGINAL_USER/:"
 echo "  start_drone_relay.sh    - Start the relay service"
 echo "  stop_drone_relay.sh     - Stop the relay service"
 echo "  check_drone_relay.sh    - Check service status and logs"
