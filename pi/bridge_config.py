@@ -39,6 +39,7 @@ CELLULAR_USERNAME = ""            # Username for cellular connection (if require
 CELLULAR_PASSWORD = ""            # Password for cellular connection (if required)
 
 # Bridge Operational Settings
+SOCKET_TIMEOUT = 1.0              # Socket timeout in seconds
 BUFFER_SIZE = 65536               # Buffer size for socket operations
 QUEUE_SIZE = 100                  # Maximum queue size for packet buffering
 RETRY_ATTEMPTS = 3                # Number of retry attempts for failed operations
