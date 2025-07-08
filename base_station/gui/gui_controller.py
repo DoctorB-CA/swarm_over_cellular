@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, QThread, pyqtSlot
 
 from base_station.connection.drone_comm import DroneComm
 from .gui_components import (
@@ -14,20 +14,30 @@ class DroneGUIController(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        # Create the communication layer
-        self.drone_comm = DroneComm()
-        
-        # Connect signals from communication layer
-        self.drone_comm.video_frame_received.connect(self.handle_video_frame)
-        self.drone_comm.connection_status_changed.connect(self.handle_connection_status)
-        
-        # Initialize UI components
+        # Initialize UI components first
         self.init_ui()
+        
+        # Create the communication layer after UI is initialized
+        self.drone_comm = None
+        self.init_communication()
         
         # Create a fallback timer for UI updates when no telemetry is received
         self.fallback_timer = QTimer()
         self.fallback_timer.timeout.connect(self.fallback_update)
         self.fallback_timer.start(100)  # 10 fps
+    
+    def init_communication(self):
+        """Initialize the communication layer in the main thread"""
+        try:
+            self.drone_comm = DroneComm()
+            
+            # Connect signals from communication layer
+            self.drone_comm.video_frame_received.connect(self.handle_video_frame)
+            self.drone_comm.connection_status_changed.connect(self.handle_connection_status)
+            
+        except Exception as e:
+            print(f"Error initializing communication: {e}")
+            self.drone_comm = None
     
     def init_ui(self):
         """Initialize the user interface"""
@@ -90,6 +100,10 @@ class DroneGUIController(QMainWindow):
     
     def toggle_connection(self):
         """Connect to or disconnect from the drone"""
+        if not self.drone_comm:
+            print("Error: Communication layer not initialized")
+            return
+            
         if not self.drone_comm.connected:
             # Update connection parameters
             params = self.connection_widget.get_connection_params()
