@@ -16,50 +16,12 @@ import logging
 from datetime import datetime
 
 # Import network configuration
-try:
-    from bridge_config import (
-        DRONE_LOCAL_IP as DRONE_IP, 
-        CONTROL_STATION_PUBLIC_IP as CONTROL_STATION_IP,
-        BRIDGE_COMMAND_PORT as COMMAND_PORT,
-        BRIDGE_TELEMETRY_PORT as TELEMETRY_PORT,
-        BRIDGE_VIDEO_PORT as VIDEO_PORT,
-        BRIDGE_RTP_PORT as RTP_VIDEO_PORT,
-        BUFFER_SIZE as MAX_PACKET_SIZE,
-        SOCKET_TIMEOUT,
-        # Import original ports for forwarding
-        CONTROL_COMMAND_PORT,
-        CONTROL_TELEMETRY_PORT,
-        CONTROL_VIDEO_PORT,
-        CONTROL_RTP_PORT
-    )
-    # Original drone ports (where drone expects to receive)
-    DRONE_COMMAND_PORT = 8889
-    DRONE_TELEMETRY_PORT = 8888
-    DRONE_VIDEO_PORT = 8890
-    DRONE_RTP_PORT = 5000
-except ImportError:
-    # Fallback to base station config if bridge_config not available
-    import os
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from base_station.connection.network_config import (
-        DRONE_IP, CONTROL_STATION_IP, COMMAND_PORT, TELEMETRY_PORT, 
-        VIDEO_PORT, RTP_VIDEO_PORT, SOCKET_TIMEOUT, MAX_PACKET_SIZE
-    )
-    # Use same ports for forwarding in fallback mode
-    DRONE_COMMAND_PORT = COMMAND_PORT
-    DRONE_TELEMETRY_PORT = TELEMETRY_PORT
-    DRONE_VIDEO_PORT = VIDEO_PORT
-    DRONE_RTP_PORT = RTP_VIDEO_PORT
-    CONTROL_COMMAND_PORT = COMMAND_PORT
-    CONTROL_TELEMETRY_PORT = TELEMETRY_PORT
-    CONTROL_VIDEO_PORT = VIDEO_PORT
-    CONTROL_RTP_PORT = RTP_VIDEO_PORT
-
-# Add missing SOCKET_TIMEOUT if not in bridge_config
-try:
-    SOCKET_TIMEOUT
-except NameError:
-    SOCKET_TIMEOUT = 1.0
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from base_station.connection.network_config import (
+    DRONE_IP, CONTROL_STATION_IP, COMMAND_PORT, TELEMETRY_PORT, 
+    VIDEO_PORT, RTP_VIDEO_PORT, SOCKET_TIMEOUT, MAX_PACKET_SIZE
+)
 
 class CommunicationBridge:
     """Bridge for relaying communication between drone and control station"""
@@ -132,13 +94,9 @@ class CommunicationBridge:
     def create_sockets(self):
         """Create and configure all required sockets"""
         try:
-            # Enable socket reuse to avoid "address already in use" errors
-            socket_options = socket.SO_REUSEADDR
-            
             # Command relay sockets
             # Listen for commands from control station
             self.command_from_control = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.command_from_control.setsockopt(socket.SOL_SOCKET, socket_options, 1)
             self.command_from_control.bind(('0.0.0.0', self.command_port))
             self.command_from_control.settimeout(SOCKET_TIMEOUT)
             
@@ -148,8 +106,7 @@ class CommunicationBridge:
             # Telemetry relay sockets
             # Listen for telemetry from drone
             self.telemetry_from_drone = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.telemetry_from_drone.setsockopt(socket.SOL_SOCKET, socket_options, 1)
-            self.telemetry_from_drone.bind(('0.0.0.0', self.telemetry_port))
+            self.telemetry_from_drone.bind(('0.0.0.0', self.telemetry_port + 1000))  # Use different port
             self.telemetry_from_drone.settimeout(SOCKET_TIMEOUT)
             
             # Send telemetry to control station
@@ -158,8 +115,7 @@ class CommunicationBridge:
             # Video relay sockets (legacy)
             # Listen for video from drone
             self.video_from_drone = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.video_from_drone.setsockopt(socket.SOL_SOCKET, socket_options, 1)
-            self.video_from_drone.bind(('0.0.0.0', self.video_port))
+            self.video_from_drone.bind(('0.0.0.0', self.video_port + 1000))  # Use different port
             self.video_from_drone.settimeout(SOCKET_TIMEOUT)
             
             # Send video to control station
@@ -168,8 +124,7 @@ class CommunicationBridge:
             # RTP video relay sockets
             # Listen for RTP video from drone
             self.rtp_from_drone = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.rtp_from_drone.setsockopt(socket.SOL_SOCKET, socket_options, 1)
-            self.rtp_from_drone.bind(('0.0.0.0', self.rtp_video_port))
+            self.rtp_from_drone.bind(('0.0.0.0', self.rtp_video_port + 1000))  # Use different port
             self.rtp_from_drone.settimeout(SOCKET_TIMEOUT)
             
             # Send RTP video to control station
@@ -192,8 +147,8 @@ class CommunicationBridge:
                 data, addr = self.command_from_control.recvfrom(MAX_PACKET_SIZE)
                 
                 if data:
-                    # Forward command to drone (use original drone port, not bridge port)
-                    self.command_to_drone.sendto(data, (self.drone_ip, DRONE_COMMAND_PORT))
+                    # Forward command to drone
+                    self.command_to_drone.sendto(data, (self.drone_ip, self.command_port))
                     
                     # Update statistics
                     self.stats['commands_relayed'] += 1
@@ -218,8 +173,8 @@ class CommunicationBridge:
                 data, addr = self.telemetry_from_drone.recvfrom(MAX_PACKET_SIZE)
                 
                 if data:
-                    # Forward telemetry to control station (use original control station port)
-                    self.telemetry_to_control.sendto(data, (self.control_station_ip, CONTROL_TELEMETRY_PORT))
+                    # Forward telemetry to control station
+                    self.telemetry_to_control.sendto(data, (self.control_station_ip, self.telemetry_port))
                     
                     # Update statistics
                     self.stats['telemetry_relayed'] += 1
