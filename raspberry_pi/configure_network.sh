@@ -1,0 +1,23 @@
+#!/bin/bash
+echo "=== Network Configuration Helper ==="
+echo ""
+echo "Current network configuration:"
+ip addr show
+
+echo ""
+echo "To configure static IP addresses, edit /etc/dhcpcd.conf"
+echo "Example configuration for dual network setup:"
+echo ""
+echo "# Base station network interface (e.g., eth0)"
+echo "interface eth0"
+echo "static ip_address=10.0.0.6/24"
+echo "static routers=10.0.0.1"
+echo "static domain_name_servers=8.8.8.8"
+echo ""
+echo "# Drone network interface (e.g., wlan0 as hotspot)"
+echo "interface wlan0"
+echo "static ip_address=192.168.4.1/24"
+echo "nohook wpa_supplicant"
+echo ""
+echo "After editing, restart networking:"
+echo "sudo systemctl restart dhcpcd"
