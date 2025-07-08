@@ -1,0 +1,28 @@
+# Raspberry Pi Drone Relay Requirements
+# These packages are needed for the drone relay system
+
+# No Python packages required - uses only standard library
+# The relay system is designed to work with Python 3.7+ standard library only
+
+# System dependencies (installed by setup_relay.sh):
+# - ffmpeg (for video relay)
+# - python3 (Python 3.7+)
+# - systemd (for service management)
+# - iptables (for firewall rules)
+# - hostapd (for WiFi hotspot)
+# - dnsmasq (for DHCP server)
+
+# Optional monitoring tools:
+# - htop (process monitoring)
+# - iotop (I/O monitoring)  
+# - iftop (network monitoring)
+# - nethogs (network usage by process)
+# - tcpdump (packet capture)
+# - vnstat (network statistics)
+
+# For development/testing, you might want:
+# - numpy (for advanced data processing)
+# - opencv-python (for video analysis)
+# - PyQt5 (if running GUI tools on Pi)
+
+# But the core relay only needs Python standard library
