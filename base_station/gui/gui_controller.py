@@ -96,7 +96,7 @@ class DroneGUIController(QMainWindow):
             self.drone_comm.ip = params['ip']
             self.drone_comm.command_port = params['command_port']
             self.drone_comm.telemetry_port = params['telemetry_port']
-            self.drone_comm.video_port = params['video_port']
+            self.drone_comm.rtp_video_port = params['video_port']  # Now using RTP video port
             
             # Connect
             if self.drone_comm.connect():

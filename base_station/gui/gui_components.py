@@ -7,7 +7,7 @@ from PyQt5.QtGui import QImage, QPixmap, QIntValidator, qRgb
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from base_station.connection.network_config import DRONE_IP, COMMAND_PORT, TELEMETRY_PORT, VIDEO_PORT
+from base_station.connection.network_config import DRONE_IP, COMMAND_PORT, TELEMETRY_PORT, VIDEO_PORT, RTP_VIDEO_PORT
 
 class VideoFeedWidget:
     """Widget for displaying video feed from the drone"""
@@ -15,23 +15,40 @@ class VideoFeedWidget:
     def __init__(self, parent):
         # Video feed 
         self.video_feed = QLabel(parent)
-        self.video_feed.setStyleSheet("background-color: black;")
+        self.video_feed.setStyleSheet("background-color: black; border: 2px solid gray;")
         self.video_feed.setMinimumSize(640, 480)
+        self.video_feed.setScaledContents(True)  # Scale content to fit
         
-        # Create an empty pixmap
-        empty_pixmap = QPixmap(640, 480)
-        empty_pixmap.fill(Qt.black)
-        self.video_feed.setPixmap(empty_pixmap)
+        # Create an empty pixmap with "No Video Signal" text
+        self.create_no_signal_pixmap()
         
         # Frame counter for fallback video simulation
         self.frame_count = 0
+        
+    def create_no_signal_pixmap(self):
+        """Create a 'No Video Signal' placeholder"""
+        from PyQt5.QtGui import QPainter, QFont
+        empty_pixmap = QPixmap(640, 480)
+        empty_pixmap.fill(Qt.black)
+        
+        painter = QPainter(empty_pixmap)
+        painter.setPen(Qt.white)
+        painter.setFont(QFont("Arial", 16))
+        painter.drawText(empty_pixmap.rect(), Qt.AlignCenter, "No RTP Video Signal\nWaiting for FFmpeg stream...")
+        painter.end()
+        
+        self.video_feed.setPixmap(empty_pixmap)
         
     def get_widget(self):
         return self.video_feed
         
     def update_frame(self, frame):
         """Update with a received QImage frame"""
-        self.video_feed.setPixmap(QPixmap.fromImage(frame))
+        # Scale the frame to fit the widget while maintaining aspect ratio
+        scaled_pixmap = QPixmap.fromImage(frame).scaled(
+            self.video_feed.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        self.video_feed.setPixmap(scaled_pixmap)
         
     def generate_simulated_frame(self):
         """Generate a simulated frame for testing"""
@@ -39,22 +56,31 @@ class VideoFeedWidget:
         width, height = 640, 480
         image = QImage(width, height, QImage.Format_RGB888)
         
-        for x in range(0, width, 10):
-            for y in range(0, height, 10):
-                # Create a simple grid pattern
-                if (x // 10 + y // 10 + self.frame_count // 10) % 2 == 0:
-                    for i in range(10):
-                        for j in range(10):
-                            if x+i < width and y+j < height:
-                                image.setPixel(x+i, y+j, qRgb(0, 0, 0))
+        # Create a more sophisticated test pattern
+        for x in range(0, width, 20):
+            for y in range(0, height, 20):
+                # Create a moving pattern
+                if (x // 20 + y // 20 + self.frame_count // 5) % 2 == 0:
+                    color = qRgb(50, 50, 100)  # Dark blue
                 else:
-                    for i in range(10):
-                        for j in range(10):
-                            if x+i < width and y+j < height:
-                                image.setPixel(x+i, y+j, qRgb(100, 100, 100))
+                    color = qRgb(100, 150, 200)  # Light blue
+                    
+                for i in range(20):
+                    for j in range(20):
+                        if x+i < width and y+j < height:
+                            image.setPixel(x+i, y+j, color)
+        
+        # Add text overlay for simulation
+        from PyQt5.QtGui import QPainter, QFont
+        pixmap = QPixmap.fromImage(image)
+        painter = QPainter(pixmap)
+        painter.setPen(Qt.white)
+        painter.setFont(QFont("Arial", 12))
+        painter.drawText(10, 30, f"Simulated FFmpeg RTP Stream - Frame {self.frame_count}")
+        painter.end()
                                 
         # Display simulated frame
-        self.video_feed.setPixmap(QPixmap.fromImage(image))
+        self.video_feed.setPixmap(pixmap)
         return image
 
 
@@ -85,7 +111,7 @@ class ConnectionWidget:
 
         # Video port
         layout.addWidget(QLabel("Video Port:"), 3, 0)
-        self.video_port_input = QLineEdit(str(VIDEO_PORT))
+        self.video_port_input = QLineEdit(str(RTP_VIDEO_PORT))
         self.video_port_input.setValidator(QIntValidator(1, 65535))
         layout.addWidget(self.video_port_input, 3, 1)
         

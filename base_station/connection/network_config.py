@@ -10,7 +10,8 @@ CONTROL_STATION_IP = "10.0.0.3"  # IP address of the control station
 # Ports
 COMMAND_PORT = 8889         # Port for sending commands to the drone
 TELEMETRY_PORT = 8888       # Port for receiving telemetry from the drone
-VIDEO_PORT = 8890           # Port for receiving video from the drone
+VIDEO_PORT = 8890           # Port for receiving video from the drone (legacy)
+RTP_VIDEO_PORT = 5000       # Port for receiving RTP video stream
 
 # Timeouts
 SOCKET_TIMEOUT = 1.0        # Socket timeout in seconds
