@@ -47,7 +47,8 @@ RTP_PACKET_SIZE = 1500          # Maximum RTP packet size
 # ====================
 
 LOG_LEVEL = "INFO"              # Logging level: DEBUG, INFO, WARNING, ERROR
-LOG_FILE = "/var/log/drone_relay.log"  # Log file path
+LOG_FILE = "/var/log/drone_relay.log"  # Primary log file path
+LOG_FILE_FALLBACK = "~/drone_relay.log"  # Fallback log file if primary fails
 ENABLE_PACKET_LOGGING = False   # Enable detailed packet logging (for debugging)
 
 # Feature Flags

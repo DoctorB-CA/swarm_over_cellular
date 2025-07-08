@@ -52,14 +52,28 @@ class DroneRelay:
     
     def setup_logging(self):
         """Setup logging configuration"""
+        import os
+        
         log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        
+        # Try primary log file first, then fallback
+        log_file = LOG_FILE
+        try:
+            # Test if we can write to the primary log file
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            with open(log_file, 'a') as f:
+                pass  # Just test if we can open for writing
+        except (PermissionError, OSError):
+            # Use fallback location
+            log_file = os.path.expanduser(LOG_FILE_FALLBACK)
+            print(f"Warning: Cannot write to {LOG_FILE}, using fallback: {log_file}")
         
         # Configure root logger
         logging.basicConfig(
             level=getattr(logging, LOG_LEVEL),
             format=log_format,
             handlers=[
-                logging.FileHandler(LOG_FILE),
+                logging.FileHandler(log_file),
                 logging.StreamHandler(sys.stdout)
             ]
         )
