@@ -17,7 +17,7 @@ INTERFACE_PRIORITY = [CELLULAR_INTERFACE, WIFI_INTERFACE, ETHERNET_INTERFACE]
 # Network Configuration for Pi Bridge
 # IP addresses that the Pi bridge will use
 PI_BRIDGE_IP = "0.0.0.0"         # Listen on all interfaces
-DRONE_LOCAL_IP = "192.168.10.1" # Local IP for direct drone connection
+DRONE_LOCAL_IP = "192.168.1.100" # Local IP for direct drone connection
 CONTROL_STATION_PUBLIC_IP = "10.0.0.3"  # Public IP of control station over cellular
 
 # Port Configuration for Bridge
