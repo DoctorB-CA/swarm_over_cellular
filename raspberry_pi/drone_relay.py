@@ -293,12 +293,23 @@ class DroneRelay:
             
             while self.running:
                 try:
+                    # Create JSON-serializable statistics
+                    stats_copy = self.statistics.copy()
+                    
+                    # Convert datetime objects to ISO format strings
+                    if stats_copy.get('start_time'):
+                        stats_copy['start_time'] = stats_copy['start_time'].isoformat()
+                    if stats_copy.get('last_command_time'):
+                        stats_copy['last_command_time'] = stats_copy['last_command_time'].isoformat()
+                    if stats_copy.get('last_telemetry_time'):
+                        stats_copy['last_telemetry_time'] = stats_copy['last_telemetry_time'].isoformat()
+                    
                     # Send heartbeat to base station
                     heartbeat_data = json.dumps({
                         'type': 'heartbeat',
                         'timestamp': datetime.now().isoformat(),
                         'relay_status': 'active',
-                        'statistics': self.statistics.copy()
+                        'statistics': stats_copy
                     }).encode('utf-8')
                     
                     heartbeat_socket.sendto(
