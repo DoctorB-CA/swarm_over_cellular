@@ -50,6 +50,19 @@ class DroneRelay:
         
         self.logger.info("Drone Relay initialized")
     
+    def make_json_safe(self, obj):
+        """Convert an object to be JSON serializable"""
+        if obj is None:
+            return None
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
+        elif isinstance(obj, dict):
+            return {key: self.make_json_safe(value) for key, value in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [self.make_json_safe(item) for item in obj]
+        else:
+            return obj
+    
     def setup_logging(self):
         """Setup logging configuration"""
         import os
@@ -65,7 +78,11 @@ class DroneRelay:
                 pass  # Just test if we can open for writing
         except (PermissionError, OSError):
             # Use fallback location
-            log_file = os.path.expanduser(LOG_FILE_FALLBACK)
+            try:
+                log_file = os.path.expanduser(LOG_FILE_FALLBACK)
+            except NameError:
+                # If LOG_FILE_FALLBACK is not defined
+                log_file = os.path.expanduser("~/drone_relay.log")
             print(f"Warning: Cannot write to {LOG_FILE}, using fallback: {log_file}")
         
         # Configure root logger
@@ -293,16 +310,8 @@ class DroneRelay:
             
             while self.running:
                 try:
-                    # Create JSON-serializable statistics
-                    stats_copy = self.statistics.copy()
-                    
-                    # Convert datetime objects to ISO format strings
-                    if stats_copy.get('start_time'):
-                        stats_copy['start_time'] = stats_copy['start_time'].isoformat()
-                    if stats_copy.get('last_command_time'):
-                        stats_copy['last_command_time'] = stats_copy['last_command_time'].isoformat()
-                    if stats_copy.get('last_telemetry_time'):
-                        stats_copy['last_telemetry_time'] = stats_copy['last_telemetry_time'].isoformat()
+                    # Create JSON-serializable statistics using the safe method
+                    stats_copy = self.make_json_safe(self.statistics)
                     
                     # Send heartbeat to base station
                     heartbeat_data = json.dumps({
@@ -322,6 +331,9 @@ class DroneRelay:
                 except Exception as e:
                     if self.running:
                         self.logger.error(f"Heartbeat error: {e}")
+                        # Add more debugging info
+                        import traceback
+                        self.logger.debug(f"Heartbeat traceback: {traceback.format_exc()}")
         
         thread = threading.Thread(target=heartbeat_worker, name="Heartbeat")
         thread.daemon = True
