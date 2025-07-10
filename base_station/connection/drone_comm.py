@@ -86,10 +86,11 @@ class DroneComm(QObject):
         """Setup FFmpeg pipeline for RTP H.264 video reception"""
         try:
             # FFmpeg command to receive RTP H.264 and output raw RGB frames
+            # Changed from 127.0.0.1 to 0.0.0.0 to accept video from relay on different machine
             ffmpeg_cmd = [
                 'ffmpeg',
                 '-protocol_whitelist', 'file,udp,rtp',
-                '-i', f'rtp://127.0.0.1:{self.rtp_video_port}',
+                '-i', f'rtp://0.0.0.0:{self.rtp_video_port}',
                 '-f', 'rawvideo',
                 '-pix_fmt', 'rgb24',
                 '-an',  # no audio
