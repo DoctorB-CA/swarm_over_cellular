@@ -147,8 +147,9 @@ class DroneGUIController(QMainWindow):
     def fallback_update(self):
         """Fallback update for when no telemetry is being received"""
         if not self.drone_comm.connected:
-            # Generate simulated video frame when not connected
-            self.video_widget.generate_simulated_frame()
+            # Don't generate simulated video - wait for real video from relay
+            # Just keep showing the "No Video Signal" message
+            pass
     
     def closeEvent(self, event):
         """Clean up when window is closed"""

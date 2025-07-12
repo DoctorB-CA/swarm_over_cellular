@@ -34,7 +34,7 @@ class VideoFeedWidget:
         painter = QPainter(empty_pixmap)
         painter.setPen(Qt.white)
         painter.setFont(QFont("Arial", 16))
-        painter.drawText(empty_pixmap.rect(), Qt.AlignCenter, "No RTP Video Signal\nWaiting for FFmpeg stream...")
+        painter.drawText(empty_pixmap.rect(), Qt.AlignCenter, "No Video Signal\nWaiting for RTP stream from relay...\nConnect to start video feed")
         painter.end()
         
         self.video_feed.setPixmap(empty_pixmap)
@@ -185,6 +185,17 @@ class FlightControlsWidget:
         self.right_btn.clicked.connect(lambda: on_move("right"))
         layout.addWidget(self.right_btn, 2, 2)
         
+        # Video control buttons
+        self.video_on_btn = QPushButton("Video ON")
+        self.video_on_btn.clicked.connect(lambda: on_move("streamon"))
+        self.video_on_btn.setStyleSheet("background-color: green; color: white;")
+        layout.addWidget(self.video_on_btn, 5, 0)
+        
+        self.video_off_btn = QPushButton("Video OFF")
+        self.video_off_btn.clicked.connect(lambda: on_move("streamoff"))
+        self.video_off_btn.setStyleSheet("background-color: red; color: white;")
+        layout.addWidget(self.video_off_btn, 5, 2)
+        
         self.group.setLayout(layout)
     
     def get_widget(self):
@@ -198,6 +209,8 @@ class FlightControlsWidget:
         self.backward_btn.setEnabled(enabled)
         self.left_btn.setEnabled(enabled)
         self.right_btn.setEnabled(enabled)
+        self.video_on_btn.setEnabled(enabled)
+        self.video_off_btn.setEnabled(enabled)
 
 
 class AdvancedControlsWidget:

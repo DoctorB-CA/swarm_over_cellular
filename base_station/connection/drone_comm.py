@@ -62,6 +62,12 @@ class DroneComm(QObject):
                 self.connected = True
                 self.running = True
 
+                # Start video streaming immediately after connecting
+                if self.send_command("streamon"):
+                    print("Video streaming started")
+                else:
+                    print("Warning: Failed to start video streaming")
+
                 # Start telemetry receiver thread
                 self.telemetry_thread = threading.Thread(target=self.receive_telemetry)
                 self.telemetry_thread.daemon = True
@@ -83,14 +89,15 @@ class DroneComm(QObject):
             return False
 
     def setup_ffmpeg_pipeline(self):
-        """Setup FFmpeg pipeline for RTP H.264 video reception"""
+        """Setup FFmpeg pipeline for UDP H.264 video reception"""
         try:
-            # FFmpeg command to receive RTP H.264 and output raw RGB frames
-            # Changed from 127.0.0.1 to 0.0.0.0 to accept video from relay on different machine
+            # Try different approaches to handle the incoming video data
+            # First try: assume it's MPEGTS over UDP (common for drone video)
             ffmpeg_cmd = [
                 'ffmpeg',
-                '-protocol_whitelist', 'file,udp,rtp',
-                '-i', f'rtp://0.0.0.0:{self.rtp_video_port}',
+                '-protocol_whitelist', 'file,udp',
+                '-f', 'mpegts',  # Try MPEGTS format first
+                '-i', f'udp://0.0.0.0:{self.rtp_video_port}?fifo_size=1000000&overrun_nonfatal=1',
                 '-f', 'rawvideo',
                 '-pix_fmt', 'rgb24',
                 '-an',  # no audio
@@ -105,7 +112,42 @@ class DroneComm(QObject):
                 bufsize=0
             )
             
-            print(f"FFmpeg process started for RTP video on port {self.rtp_video_port}")
+            print(f"FFmpeg process started for UDP video on port {self.rtp_video_port} (trying MPEGTS format)")
+            
+            # Check if FFmpeg started successfully
+            time.sleep(0.1)  # Give FFmpeg time to start
+            if self.ffmpeg_process.poll() is not None:
+                stderr_output = self.ffmpeg_process.stderr.read().decode('utf-8')
+                print(f"MPEGTS format failed: {stderr_output}")
+                
+                # Try raw H.264 format as fallback
+                print("Trying raw H.264 format...")
+                ffmpeg_cmd = [
+                    'ffmpeg',
+                    '-protocol_whitelist', 'file,udp',
+                    '-f', 'h264',  # Raw H.264 format
+                    '-i', f'udp://0.0.0.0:{self.rtp_video_port}?fifo_size=1000000&overrun_nonfatal=1',
+                    '-f', 'rawvideo',
+                    '-pix_fmt', 'rgb24',
+                    '-an',  # no audio
+                    '-'     # output to stdout
+                ]
+                
+                self.ffmpeg_process = subprocess.Popen(
+                    ffmpeg_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    bufsize=0
+                )
+                
+                time.sleep(0.1)
+                if self.ffmpeg_process.poll() is not None:
+                    stderr_output = self.ffmpeg_process.stderr.read().decode('utf-8')
+                    print(f"H.264 format also failed: {stderr_output}")
+                    return False
+                else:
+                    print("H.264 format appears to be working")
+            
             return True
             
         except Exception as e:
@@ -114,20 +156,44 @@ class DroneComm(QObject):
 
     def receive_video_ffmpeg(self):
         """Receive and decode video frames using FFmpeg."""
-        # Launch FFmpeg elsewhere with:
-        # ffmpeg -i udp://0.0.0.0:11111 -f rawvideo -pix_fmt rgb24 -s 640x480 -an -sn pipe:1
         frame_width, frame_height = 640, 480
         frame_size = frame_width * frame_height * 3  # RGB24 bytes per frame
         
+        print(f"Starting video receive thread, expecting frames of size {frame_size}")
+        
         buf = b''
+        frames_received = 0
         while self.running and self.ffmpeg_process:
             # Check process health
             if self.ffmpeg_process.poll() is not None:
+                stderr_output = self.ffmpeg_process.stderr.read().decode('utf-8')
+                print(f"FFmpeg process ended. Error output: {stderr_output}")
                 break
+            
+            # Check for FFmpeg errors periodically
+            if frames_received == 0 and hasattr(self, '_error_check_counter'):
+                self._error_check_counter += 1
+                if self._error_check_counter % 100 == 0:  # Check every 100 iterations
+                    # Read available stderr without blocking
+                    try:
+                        import select
+                        if select.select([self.ffmpeg_process.stderr], [], [], 0)[0]:
+                            stderr_data = self.ffmpeg_process.stderr.read(1024).decode('utf-8', errors='ignore')
+                            if stderr_data:
+                                print(f"FFmpeg stderr: {stderr_data}")
+                    except:
+                        pass
+            elif frames_received == 0:
+                self._error_check_counter = 0
             
             # Read just what's needed to complete one frame
             needed = frame_size - len(buf)
-            data = self.ffmpeg_process.stdout.read(needed)
+            try:
+                data = self.ffmpeg_process.stdout.read(needed)
+            except Exception as e:
+                print(f"Error reading from FFmpeg stdout: {e}")
+                break
+                
             if not data:
                 time.sleep(0.005)
                 continue
@@ -138,6 +204,10 @@ class DroneComm(QObject):
                 continue
             
             raw_frame, buf = buf[:frame_size], buf[frame_size:]
+            frames_received += 1
+            
+            if frames_received % 30 == 0:  # Log every 30 frames
+                print(f"Received {frames_received} video frames")
             
             # Decode into NumPy and QImage
             frame_arr = np.frombuffer(raw_frame, np.uint8).reshape(frame_height, frame_width, 3)
@@ -147,9 +217,16 @@ class DroneComm(QObject):
             
             # Emit without forcing a copy; Qt will take its own ref
             self.video_frame_received.emit(q_img)
+            
+        print(f"Video receive thread ended. Total frames received: {frames_received}")
 
     def disconnect(self):
         """Disconnect from the drone"""
+        # Stop video streaming before disconnecting
+        if self.connected:
+            self.send_command("streamoff")
+            print("Video streaming stopped")
+        
         self.running = False
         self.connected = False
 
