@@ -89,15 +89,14 @@ class DroneComm(QObject):
             return False
 
     def setup_ffmpeg_pipeline(self):
-        """Setup FFmpeg pipeline for UDP H.264 video reception"""
+        """Setup FFmpeg pipeline for RTP video reception"""
         try:
-            # Try different approaches to handle the incoming video data
-            # First try: assume it's MPEGTS over UDP (common for drone video)
+            # Receive RTP stream from Pi relay
             ffmpeg_cmd = [
                 'ffmpeg',
-                '-protocol_whitelist', 'file,udp',
-                '-f', 'mpegts',  # Try MPEGTS format first
-                '-i', f'udp://0.0.0.0:{self.rtp_video_port}?fifo_size=1000000&overrun_nonfatal=1',
+                '-protocol_whitelist', 'file,udp,rtp',
+                '-f', 'rtp',  # RTP format from Pi
+                '-i', f'rtp://0.0.0.0:{self.rtp_video_port}',
                 '-f', 'rawvideo',
                 '-pix_fmt', 'rgb24',
                 '-an',  # no audio
@@ -112,20 +111,20 @@ class DroneComm(QObject):
                 bufsize=0
             )
             
-            print(f"FFmpeg process started for UDP video on port {self.rtp_video_port} (trying MPEGTS format)")
+            print(f"FFmpeg process started for RTP video on port {self.rtp_video_port}")
             
             # Check if FFmpeg started successfully
             time.sleep(0.1)  # Give FFmpeg time to start
             if self.ffmpeg_process.poll() is not None:
                 stderr_output = self.ffmpeg_process.stderr.read().decode('utf-8')
-                print(f"MPEGTS format failed: {stderr_output}")
+                print(f"RTP format failed: {stderr_output}")
                 
-                # Try raw H.264 format as fallback
-                print("Trying raw H.264 format...")
+                # Try raw H.264 over UDP as fallback
+                print("Trying raw H.264 over UDP...")
                 ffmpeg_cmd = [
                     'ffmpeg',
                     '-protocol_whitelist', 'file,udp',
-                    '-f', 'h264',  # Raw H.264 format
+                    '-f', 'h264',
                     '-i', f'udp://0.0.0.0:{self.rtp_video_port}?fifo_size=1000000&overrun_nonfatal=1',
                     '-f', 'rawvideo',
                     '-pix_fmt', 'rgb24',
