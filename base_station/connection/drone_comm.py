@@ -97,6 +97,7 @@ class DroneComm(QObject):
                 '-protocol_whitelist', 'file,udp',
                 '-f', 'h264',  # Raw H.264 from drone (forwarded by Pi)
                 '-i', f'udp://0.0.0.0:{self.rtp_video_port}?fifo_size=1000000&overrun_nonfatal=1',
+                '-vf', 'scale=640:480',  # Force scale to consistent size
                 '-f', 'rawvideo',
                 '-pix_fmt', 'rgb24',
                 '-an',  # no audio

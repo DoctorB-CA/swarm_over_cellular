@@ -44,10 +44,22 @@ class VideoFeedWidget:
         
     def update_frame(self, frame):
         """Update with a received QImage frame"""
-        # Scale the frame to fit the widget while maintaining aspect ratio
-        scaled_pixmap = QPixmap.fromImage(frame).scaled(
-            self.video_feed.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+        # Ensure frame is valid
+        if frame.isNull():
+            return
+            
+        # Convert to pixmap and scale properly
+        pixmap = QPixmap.fromImage(frame)
+        
+        # Get widget size and frame size
+        widget_size = self.video_feed.size()
+        frame_size = pixmap.size()
+        
+        # Scale to fit widget while maintaining aspect ratio
+        scaled_pixmap = pixmap.scaled(
+            widget_size, Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
+        
         self.video_feed.setPixmap(scaled_pixmap)
         
     def generate_simulated_frame(self):
