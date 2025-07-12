@@ -10,12 +10,57 @@ import threading
 import time
 import subprocess
 import sys
-from relay_config import DRONE_VIDEO_PORT, DRONE_IP
+from relay_config import DRONE_VIDEO_PORT, DRONE_IP, DRONE_COMMAND_PORT
 
 class VideTester:
     def __init__(self):
         self.running = False
         self.cap = None
+        self.command_socket = None
+    
+    def send_drone_command(self, command):
+        """Send a command to the drone via UDP"""
+        try:
+            if not self.command_socket:
+                self.command_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            
+            print(f"Sending command to drone: '{command}'")
+            self.command_socket.sendto(command.encode(), (DRONE_IP, DRONE_COMMAND_PORT))
+            
+            # Wait a bit for drone to process command
+            time.sleep(0.5)
+            return True
+            
+        except Exception as e:
+            print(f"✗ ERROR sending command '{command}': {e}")
+            return False
+    
+    def initialize_drone(self):
+        """Initialize drone and start video streaming"""
+        print("=== DRONE INITIALIZATION ===")
+        print(f"Connecting to drone at {DRONE_IP}:{DRONE_COMMAND_PORT}")
+        
+        # Send required commands to drone
+        commands = [
+            "command",    # Enter SDK mode
+            "streamon"    # Start video streaming
+        ]
+        
+        success = True
+        for cmd in commands:
+            if not self.send_drone_command(cmd):
+                success = False
+                break
+            print(f"✓ Command '{cmd}' sent successfully")
+        
+        if success:
+            print("✓ Drone initialized - video streaming should now be active")
+            print("Waiting 3 seconds for video stream to stabilize...")
+            time.sleep(3)
+        else:
+            print("✗ Failed to initialize drone")
+        
+        return success
         
     def test_opencv_direct(self):
         """Test 1: Try to capture video directly with OpenCV"""
@@ -184,51 +229,69 @@ class VideTester:
             except Exception as e:
                 print(f"✗ ERROR setting up packet capture: {e}")
                 return False
-        
-        return packet_listener()
+    
+    def cleanup_drone(self):
+        """Stop video streaming and close connections"""
+        print("\n=== DRONE CLEANUP ===")
+        self.send_drone_command("streamoff")
+        if self.command_socket:
+            self.command_socket.close()
+        print("✓ Drone video streaming stopped")
 
 def main():
     print("Drone Video Test Suite")
     print("=" * 50)
-    print(f"Testing video reception from drone on port {DRONE_VIDEO_PORT}")
-    print("Make sure the drone is connected and streaming video!")
+    print(f"Testing video reception from drone at {DRONE_IP}")
+    print(f"Video port: {DRONE_VIDEO_PORT}, Command port: {DRONE_COMMAND_PORT}")
     print()
     
     tester = VideTester()
     
-    # Run all tests
-    results = []
-    
-    # Test 4 first - check if we're getting any data
-    results.append(("Packet Capture", tester.test_packet_capture()))
-    
-    # Test 3 - Save to file (non-interactive)
-    results.append(("FFmpeg Save", tester.test_ffmpeg_save()))
-    
-    # Test 1 - OpenCV
-    results.append(("OpenCV", tester.test_opencv_direct()))
-    
-    # Test 2 - FFmpeg display (commented out as it requires display)
-    # print("\nSkipping FFmpeg display test (requires X11 display)")
-    
-    print("\n" + "=" * 50)
-    print("TEST SUMMARY:")
-    for test_name, success in results:
-        status = "✓ PASS" if success else "✗ FAIL"
-        print(f"  {test_name}: {status}")
-    
-    print("\nNext steps:")
-    if results[0][1]:  # Packet capture worked
-        print("- Video packets are being received from drone")
-        if results[1][1]:  # FFmpeg save worked
-            print("- FFmpeg can decode the video stream")
-            print("- Issue is likely in the Pi->BaseStation relay")
+    try:
+        # Initialize drone and start video streaming
+        if not tester.initialize_drone():
+            print("Failed to initialize drone - aborting tests")
+            return
+        
+        # Run all tests
+        results = []
+        
+        # Test 4 first - check if we're getting any data
+        results.append(("Packet Capture", tester.test_packet_capture()))
+        
+        # Test 3 - Save to file (non-interactive)
+        results.append(("FFmpeg Save", tester.test_ffmpeg_save()))
+        
+        # Test 1 - OpenCV
+        results.append(("OpenCV", tester.test_opencv_direct()))
+        
+        # Test 2 - FFmpeg display (commented out as it requires display)
+        # print("\nSkipping FFmpeg display test (requires X11 display)")
+        
+        print("\n" + "=" * 50)
+        print("TEST SUMMARY:")
+        for test_name, success in results:
+            status = "✓ PASS" if success else "✗ FAIL"
+            print(f"  {test_name}: {status}")
+        
+        print("\nNext steps:")
+        if results[0][1]:  # Packet capture worked
+            print("- Video packets are being received from drone")
+            if results[1][1]:  # FFmpeg save worked
+                print("- FFmpeg can decode the video stream")
+                print("- Issue is likely in the Pi->BaseStation relay")
+            else:
+                print("- Video packets received but FFmpeg can't decode them")
+                print("- Check drone video format/codec")
         else:
-            print("- Video packets received but FFmpeg can't decode them")
-            print("- Check drone video format/codec")
-    else:
-        print("- No video packets received from drone")
-        print("- Check drone IP, video streaming settings, and network connectivity")
+            print("- No video packets received from drone")
+            print("- Check drone IP, video streaming settings, and network connectivity")
+    
+    except KeyboardInterrupt:
+        print("\nTest interrupted by user")
+    finally:
+        # Always cleanup
+        tester.cleanup_drone()
 
 if __name__ == '__main__':
     main()
