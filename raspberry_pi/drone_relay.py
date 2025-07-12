@@ -45,8 +45,7 @@ class DroneRelay:
         # Setup logging
         self.setup_logging()
         
-        # Video relay process
-        self.video_process = None
+        # Video relay uses sockets (stored in self.sockets)
         
         self.logger.info("Drone Relay initialized")
     
@@ -248,51 +247,49 @@ class DroneRelay:
         self.threads.append(thread)
     
     def start_video_relay(self):
-        """Start the video relay using FFmpeg"""
+        """Start the simple video relay using direct UDP forwarding"""
         def video_relay_worker():
-            self.logger.info("Starting video relay worker")
+            self.logger.info("Starting simple video relay worker")
             
             try:
-                # FFmpeg command to relay video from drone to base station
-                # Receives from drone's video port and forwards as RTP to base station
-                ffmpeg_cmd = [
-                    'ffmpeg',
-                    '-f', 'h264',
-                    '-i', f'udp://0.0.0.0:{DRONE_VIDEO_PORT}',
-                    '-c', 'copy',  # Copy without re-encoding
-                    '-f', 'rtp',
-                    f'rtp://{BASE_STATION_IP}:{BASE_STATION_VIDEO_PORT}'
-                ]
+                # Create socket to receive video from drone
+                video_socket_drone = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                video_socket_drone.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                video_socket_drone.bind(('0.0.0.0', DRONE_VIDEO_PORT))
+                video_socket_drone.settimeout(1.0)
                 
-                self.logger.info(f"Starting FFmpeg video relay: {' '.join(ffmpeg_cmd)}")
+                # Create socket to send video to base station
+                video_socket_base = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 
-                # Start FFmpeg process
-                self.video_process = subprocess.Popen(
-                    ffmpeg_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    universal_newlines=True
-                )
+                self.sockets['video_rx'] = video_socket_drone
+                self.sockets['video_tx'] = video_socket_base
                 
-                # Monitor FFmpeg process
+                self.logger.info(f"Video relay listening on port {DRONE_VIDEO_PORT}, forwarding to {BASE_STATION_IP}:{BASE_STATION_VIDEO_PORT}")
+                
+                # Simple packet forwarding loop
                 while self.running:
-                    if self.video_process.poll() is not None:
-                        # Process terminated
-                        stdout, stderr = self.video_process.communicate()
-                        self.logger.error(f"FFmpeg terminated. Stdout: {stdout}, Stderr: {stderr}")
+                    try:
+                        # Receive video data from drone
+                        data, addr = video_socket_drone.recvfrom(VIDEO_BUFFER_SIZE)
                         
+                        # Forward to base station
+                        video_socket_base.sendto(data, (BASE_STATION_IP, BASE_STATION_VIDEO_PORT))
+                        
+                        # Update statistics
+                        self.statistics['video_bytes_forwarded'] += len(data)
+                        
+                        if ENABLE_PACKET_LOGGING:
+                            self.logger.debug(f"Forwarded video packet: {len(data)} bytes from {addr}")
+                            
+                    except socket.timeout:
+                        continue
+                    except Exception as e:
                         if self.running:
-                            # Try to restart
-                            self.logger.info("Attempting to restart video relay...")
-                            time.sleep(2)
-                            self.video_process = subprocess.Popen(ffmpeg_cmd, 
-                                                                stdout=subprocess.PIPE, 
-                                                                stderr=subprocess.PIPE)
-                    
-                    time.sleep(1)
-                    
+                            self.logger.error(f"Video packet forward error: {e}")
+                            self.statistics['errors'] += 1
+                            
             except Exception as e:
-                self.logger.error(f"Video relay error: {e}")
+                self.logger.error(f"Video relay setup error: {e}")
                 self.statistics['errors'] += 1
         
         thread = threading.Thread(target=video_relay_worker, name="VideoRelay")
@@ -368,15 +365,7 @@ class DroneRelay:
         self.logger.info("Stopping Drone Relay System")
         self.running = False
         
-        # Stop video process
-        if self.video_process:
-            try:
-                self.video_process.terminate()
-                self.video_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.video_process.kill()
-            except Exception as e:
-                self.logger.error(f"Error stopping video process: {e}")
+        # Video relay uses sockets (no separate process to stop)
         
         # Close all sockets
         for name, sock in self.sockets.items():

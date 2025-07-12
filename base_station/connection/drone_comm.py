@@ -89,14 +89,14 @@ class DroneComm(QObject):
             return False
 
     def setup_ffmpeg_pipeline(self):
-        """Setup FFmpeg pipeline for RTP video reception"""
+        """Setup FFmpeg pipeline for raw drone video reception (UDP forwarded)"""
         try:
-            # Receive RTP stream from Pi relay
+            # Since Pi relay test passed, Pi is forwarding raw drone video over UDP
             ffmpeg_cmd = [
                 'ffmpeg',
-                '-protocol_whitelist', 'file,udp,rtp',
-                '-f', 'rtp',  # RTP format from Pi
-                '-i', f'rtp://0.0.0.0:{self.rtp_video_port}',
+                '-protocol_whitelist', 'file,udp',
+                '-f', 'h264',  # Raw H.264 from drone (forwarded by Pi)
+                '-i', f'udp://0.0.0.0:{self.rtp_video_port}?fifo_size=1000000&overrun_nonfatal=1',
                 '-f', 'rawvideo',
                 '-pix_fmt', 'rgb24',
                 '-an',  # no audio
@@ -111,7 +111,7 @@ class DroneComm(QObject):
                 bufsize=0
             )
             
-            print(f"FFmpeg process started for RTP video on port {self.rtp_video_port}")
+            print(f"FFmpeg process started for raw H.264 video on port {self.rtp_video_port}")
             
             # Check if FFmpeg started successfully
             time.sleep(0.1)  # Give FFmpeg time to start
