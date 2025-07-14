@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, Qt
 
 from base_station.connection.drone_comm import DroneComm
 from .gui_components import (
@@ -18,8 +18,8 @@ class DroneGUIController(QMainWindow):
         self.drone_comm = DroneComm()
         
         # Connect signals from communication layer
-        self.drone_comm.video_frame_received.connect(self.handle_video_frame)
-        self.drone_comm.connection_status_changed.connect(self.handle_connection_status)
+        self.drone_comm.video_frame_received.connect(self.handle_video_frame, Qt.QueuedConnection)
+        self.drone_comm.connection_status_changed.connect(self.handle_connection_status, Qt.QueuedConnection)
         
         # Initialize UI components
         self.init_ui()
@@ -117,6 +117,16 @@ class DroneGUIController(QMainWindow):
     
     def handle_video_frame(self, frame):
         """Handle incoming video frames"""
+        # Debug: Track video frames received by GUI
+        if not hasattr(self, '_gui_frame_count'):
+            self._gui_frame_count = 0
+        self._gui_frame_count += 1
+        
+        if self._gui_frame_count <= 5:
+            print(f"GUI received frame {self._gui_frame_count}: {frame.width()}x{frame.height()}, valid: {not frame.isNull()}")
+        elif self._gui_frame_count % 30 == 0:
+            print(f"GUI received {self._gui_frame_count} frames total")
+        
         self.video_widget.update_frame(frame)
     
     #
@@ -146,10 +156,39 @@ class DroneGUIController(QMainWindow):
     
     def fallback_update(self):
         """Fallback update for when no telemetry is being received"""
+        # Test video display on first few calls
+        if not hasattr(self, '_test_frame_sent'):
+            self._test_frame_sent = 0
+        
+        if self._test_frame_sent < 3:
+            # Send a test frame to verify the video display pipeline works
+            test_frame = self.create_test_frame()
+            print(f"Sending test frame {self._test_frame_sent + 1} to video widget")
+            self.handle_video_frame(test_frame)
+            self._test_frame_sent += 1
+        
         if not self.drone_comm.connected:
             # Don't generate simulated video - wait for real video from relay
             # Just keep showing the "No Video Signal" message
             pass
+    
+    def create_test_frame(self):
+        """Create a test frame to verify video display works"""
+        from PyQt5.QtGui import QImage, qRgb
+        
+        width, height = 640, 480
+        image = QImage(width, height, QImage.Format_RGB888)
+        
+        # Fill with a test pattern
+        for x in range(width):
+            for y in range(height):
+                # Create a gradient pattern
+                r = int(255 * x / width)
+                g = int(255 * y / height)
+                b = 128
+                image.setPixel(x, y, qRgb(r, g, b))
+        
+        return image
     
     def closeEvent(self, event):
         """Clean up when window is closed"""

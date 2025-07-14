@@ -163,6 +163,7 @@ class DroneComm(QObject):
         
         buf = b''
         frames_received = 0
+        frames_emitted = 0
         while self.running and self.ffmpeg_process:
             # Check process health
             if self.ffmpeg_process.poll() is not None:
@@ -206,19 +207,46 @@ class DroneComm(QObject):
             raw_frame, buf = buf[:frame_size], buf[frame_size:]
             frames_received += 1
             
+            # Debug: Check frame data
+            if frames_received == 1:
+                print(f"First frame received: {len(raw_frame)} bytes")
+                print(f"First 20 bytes: {raw_frame[:20].hex()}")
+                # Check if frame is not all zeros (blank)
+                non_zero_bytes = sum(1 for b in raw_frame[:1000] if b != 0)
+                print(f"Non-zero bytes in first 1000: {non_zero_bytes}")
+            
             if frames_received % 30 == 0:  # Log every 30 frames
-                print(f"Received {frames_received} video frames")
+                print(f"Received {frames_received} video frames, emitted {frames_emitted}")
             
-            # Decode into NumPy and QImage
-            frame_arr = np.frombuffer(raw_frame, np.uint8).reshape(frame_height, frame_width, 3)
-            bytes_per_line = 3 * frame_width
-            q_img = QImage(frame_arr.data, frame_width, frame_height,
-                           bytes_per_line, QImage.Format_RGB888)
+            try:
+                # Decode into NumPy and QImage
+                frame_arr = np.frombuffer(raw_frame, np.uint8).reshape(frame_height, frame_width, 3)
+                bytes_per_line = 3 * frame_width
+                
+                # Create QImage with explicit copy to ensure data persistence
+                q_img = QImage(frame_arr.data, frame_width, frame_height,
+                               bytes_per_line, QImage.Format_RGB888)
+                
+                # Force a copy to ensure the image data persists after the buffer is reused
+                q_img_copy = q_img.copy()
+                
+                # Verify the image is valid
+                if not q_img_copy.isNull():
+                    # Emit the copied image
+                    self.video_frame_received.emit(q_img_copy)
+                    frames_emitted += 1
+                    
+                    # Debug first few frames
+                    if frames_emitted <= 3:
+                        print(f"Emitted frame {frames_emitted}: {q_img_copy.width()}x{q_img_copy.height()}, format: {q_img_copy.format()}")
+                else:
+                    print(f"Warning: Invalid QImage created for frame {frames_received}")
+                    
+            except Exception as e:
+                print(f"Error processing frame {frames_received}: {e}")
+                continue
             
-            # Emit without forcing a copy; Qt will take its own ref
-            self.video_frame_received.emit(q_img)
-            
-        print(f"Video receive thread ended. Total frames received: {frames_received}")
+        print(f"Video receive thread ended. Total frames received: {frames_received}, emitted: {frames_emitted}")
 
     def disconnect(self):
         """Disconnect from the drone"""

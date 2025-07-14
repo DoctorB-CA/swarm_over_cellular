@@ -44,23 +44,52 @@ class VideoFeedWidget:
         
     def update_frame(self, frame):
         """Update with a received QImage frame"""
+        # Debug: Track update_frame calls
+        if not hasattr(self, '_update_frame_count'):
+            self._update_frame_count = 0
+        self._update_frame_count += 1
+        
         # Ensure frame is valid
         if frame.isNull():
+            if self._update_frame_count <= 5:
+                print(f"VideoFeedWidget: Received null frame #{self._update_frame_count}")
             return
+        
+        if self._update_frame_count <= 5:
+            print(f"VideoFeedWidget: Updating frame #{self._update_frame_count}: {frame.width()}x{frame.height()}")
+        elif self._update_frame_count % 30 == 0:
+            print(f"VideoFeedWidget: Updated {self._update_frame_count} frames total")
             
-        # Convert to pixmap and scale properly
-        pixmap = QPixmap.fromImage(frame)
-        
-        # Get widget size and frame size
-        widget_size = self.video_feed.size()
-        frame_size = pixmap.size()
-        
-        # Scale to fit widget while maintaining aspect ratio
-        scaled_pixmap = pixmap.scaled(
-            widget_size, Qt.KeepAspectRatio, Qt.SmoothTransformation
-        )
-        
-        self.video_feed.setPixmap(scaled_pixmap)
+        try:
+            # Convert to pixmap and scale properly
+            pixmap = QPixmap.fromImage(frame)
+            
+            if pixmap.isNull():
+                print(f"VideoFeedWidget: Failed to convert QImage to QPixmap for frame #{self._update_frame_count}")
+                return
+            
+            # Get widget size and frame size
+            widget_size = self.video_feed.size()
+            frame_size = pixmap.size()
+            
+            if self._update_frame_count <= 3:
+                print(f"VideoFeedWidget: Widget size: {widget_size.width()}x{widget_size.height()}, Frame size: {frame_size.width()}x{frame_size.height()}")
+            
+            # Scale to fit widget while maintaining aspect ratio
+            scaled_pixmap = pixmap.scaled(
+                widget_size, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+            
+            # Set the pixmap
+            self.video_feed.setPixmap(scaled_pixmap)
+            
+            if self._update_frame_count <= 3:
+                print(f"VideoFeedWidget: Successfully set pixmap for frame #{self._update_frame_count}")
+                
+        except Exception as e:
+            print(f"VideoFeedWidget: Error updating frame #{self._update_frame_count}: {e}")
+            import traceback
+            traceback.print_exc()
         
     def generate_simulated_frame(self):
         """Generate a simulated frame for testing"""
