@@ -1,0 +1,38 @@
+sudo apt update
+sudo apt install -y batctl wireless-tools ifupdown net-tools
+
+sudo systemctl stop NetworkManager
+sudo systemctl stop dhcpcd
+sudo systemctl disable NetworkManager
+sudo systemctl disable dhcpcd
+
+sudo reboot
+
+sudo modprobe batman-adv
+lsmod | grep batman
+sudo nano /etc/network/interfaces
+# ===============================
+# Loopback interface
+auto lo
+iface lo inet loopback
+
+
+# Internet Wi-Fi (wlan0)
+# Uses WPA + DHCP
+auto wlan0
+iface wlan0 inet dhcp
+    wpa-ssid YOUR_WIFI_NAME
+    wpa-psk  YOUR_WIFI_PASSWORD
+
+
+# Mesh Wi-Fi (wlan1) + batman-adv
+auto wlan1
+iface wlan1 inet manual
+    wireless-channel 1
+    wireless-essid batmesh
+    wireless-mode ad-hoc
+
+    post-up batctl if add wlan1
+    post-up ifconfig bat0 up
+    post-up ifconfig bat0 192.168.2.11 netmask 255.255.255.0
+# ===============================
