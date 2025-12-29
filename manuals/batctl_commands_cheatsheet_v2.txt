@@ -1,0 +1,87 @@
+BATMAN-adv (batctl) + Mesh Debug Commands — Cheat Sheet
+====================================================
+
+Assume mesh interface is: bat0
+Most commands require: sudo
+
+1) Show attached interfaces
+---------------------------
+sudo batctl if
+- Which physical IFs are attached to batman-adv (e.g., wlan0).
+
+2) Originators (best route / next hop)
+--------------------------------------
+sudo batctl o
+- Shows all mesh nodes and the chosen next hop per node.
+- '*' = selected best route.
+- '(#/255)' = path quality (higher = better).
+- Nexthop == Originator → direct. Nexthop != Originator → via another node.
+
+3) Watch originators live
+-------------------------
+watch -n 1 'sudo batctl o'
+
+4) Watch only specific nodes (filter by MAC suffix)
+---------------------------------------------------
+watch -n 1 'sudo batctl o | egrep "b0:d7|b1:0d|Originator"'
+- Replace b0:d7 / b1:0d with your own MAC suffixes.
+
+5) Neighbors (direct links)
+---------------------------
+sudo batctl n
+- Direct neighbor list + link quality.
+
+6) Batman traceroute (real mesh hops)
+-------------------------------------
+sudo batctl tr <DEST_MAC>
+Example:
+sudo batctl tr d8:3a:dd:81:b0:d7
+- Shows hop-by-hop path inside the batman-adv mesh.
+
+7) Gateway list (only if using gw_mode)
+---------------------------------------
+sudo batctl gwl
+- Shows gateways advertised in the mesh.
+
+8) Set gateway mode (discovery/selection only)
+----------------------------------------------
+sudo batctl gw_mode client
+- Client: selects a gateway (if any are advertised).
+
+sudo batctl meshif bat0 gw_mode server 5mbit/1mbit
+- Server: advertises this node as a gateway (bandwidth hint).
+- NOTE: gw_mode does NOT do NAT. Internet sharing still needs forwarding + NAT (nft/iptables).
+
+9) OGM interval (control mesh control traffic rate)
+---------------------------------------------------
+sudo batctl meshif bat0 orig_interval 1000
+- OGM interval in ms. Bigger = less overhead, slower reaction to movement.
+
+Alt (sysfs):
+cat /sys/class/net/bat0/mesh/orig_interval
+sudo sh -c 'echo 3000 > /sys/class/net/bat0/mesh/orig_interval'
+
+10) Translation table (MAC ownership / L2 learning)
+---------------------------------------------------
+sudo batctl t
+sudo batctl tl
+- Helps when ARP/MAC behavior looks wrong.
+
+11) Loglevel (optional)
+-----------------------
+sudo batctl meshif bat0 loglevel
+- Show (and sometimes set) batman-adv log level.
+
+12) Wi‑Fi TX power “nerf” (force multi-hop / weaken links)
+----------------------------------------------------------
+sudo iw dev wlan0 set txpower fixed 0
+- Sets TX power to 0 mBm (0.00 dBm) if driver allows.
+- iw uses mBm (100 * dBm):
+    0=0.00 dBm, 50=0.50 dBm, 100=1.00 dBm, 2000=20.00 dBm
+- Verify:
+    iw dev wlan0 info | grep -i txpower
+
+Tip
+---
+- IP traceroute usually won’t show mesh hops (batman-adv is L2).
+  Use: sudo batctl tr <MAC>
