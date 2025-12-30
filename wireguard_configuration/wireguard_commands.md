@@ -1,4 +1,4 @@
-#instaling wireguard
+# instaling wireguard
 sudo apt install -y wireguard
 
 # config wireguard
