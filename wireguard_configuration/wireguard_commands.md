@@ -1,3 +1,6 @@
+#instaling wireguard
+sudo apt install -y wireguard
+
 # config wireguard
 sudo nano /etc/wireguard/wg0.conf
 
