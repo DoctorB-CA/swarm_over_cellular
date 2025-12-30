@@ -1,4 +1,4 @@
-# confige wireguard
+# config wireguard
 sudo nano /etc/wireguard/wg0.conf
 
 
