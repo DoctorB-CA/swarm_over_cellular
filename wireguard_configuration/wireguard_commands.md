@@ -1,3 +1,7 @@
+# confige wireguard
+sudo nano /etc/wireguard/wg0.conf
+
+
 # Start (bring up wg0)
 sudo systemctl start wg-quick@wg0
 
