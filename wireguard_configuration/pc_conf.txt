@@ -1,0 +1,14 @@
+[Interface]
+Address = 10.7.0.2/24
+PrivateKey = <PC_PRIVATE_KEY>
+
+[Peer]
+PublicKey = <SERVER_PUBLIC_KEY>
+Endpoint = <SERVER_PUBLIC_IP>:51820
+
+# Route both VPN subnet + mesh subnet into tunnel
+AllowedIPs = 10.7.0.0/24, 10.0.0.0/24
+
+# Recommended (PC is usually behind NAT)
+PersistentKeepalive = 25
+

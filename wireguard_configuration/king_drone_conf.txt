@@ -1,0 +1,18 @@
+[Interface]
+Address = 10.7.0.10/24
+PrivateKey = <KING_PRIVATE_KEY>
+
+# King must route between wg0 and bat0
+PostUp   = sysctl -w net.ipv4.ip_forward=1
+PostDown = true
+
+[Peer]
+PublicKey = <SERVER_PUBLIC_KEY>
+Endpoint = <SERVER_PUBLIC_IP>:51820
+
+# Only the VPN subnet needs to be "allowed" here
+AllowedIPs = 10.7.0.0/24
+
+# IMPORTANT for cellular / NAT / CGNAT
+PersistentKeepalive = 25
+
