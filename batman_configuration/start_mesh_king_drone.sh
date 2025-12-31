@@ -6,12 +6,15 @@ set -euo pipefail
 # - wlan0: IBSS mesh + batman-adv (bat0)
 # - wlan1: stays normal (internet uplink via DHCP / NetworkManager / etc)
 # - bat0: 10.0.0.1/24
-# - NAT: bat0 -> wlan1 (nftables)
+# - NAT:  bat0 -> wlan1 (nftables)
+# - VPN:  allow forwarding between wg0 <-> bat0 (so PC can reach mesh)
 # ==========================================================
 
 # ---- fixed config (edit only if your names differ)
 IFACE_MESH="${IFACE_MESH:-wlan0}"
 IFACE_UPLINK="${IFACE_UPLINK:-wlan1}"
+IFACE_WG="${IFACE_WG:-wg0}"
+
 SSID="${SSID:-call-code-mesh}"
 FREQ_MHZ="${FREQ_MHZ:-2412}"          # ch1=2412, ch6=2437, ch11=2462
 MTU="${MTU:-1468}"
@@ -76,7 +79,7 @@ sudo batctl meshif bat0 gw_mode server "$GW_BW"
 log "Enabling IPv4 forwarding..."
 sudo sysctl -w net.ipv4.ip_forward=1 >/dev/null
 
-# ---- NAT with nftables
+# ---- NAT + forward rules (nftables)
 log "Configuring nftables NAT + forwarding (bat0 -> $IFACE_UPLINK)..."
 sudo nft delete table inet meshgw 2>/dev/null || true
 sudo nft add table inet meshgw
@@ -85,16 +88,28 @@ sudo nft add chain inet meshgw forward '{ type filter hook forward priority 0; p
 sudo nft add rule  inet meshgw forward iifname "bat0" oifname "$IFACE_UPLINK" accept
 sudo nft add rule  inet meshgw forward iifname "$IFACE_UPLINK" oifname "bat0" ct state established,related accept
 
+# ---- VPN <-> Mesh forwarding (optional)
+# If wg0 exists, allow wg0 <-> bat0 so your PC (over VPN) can reach mesh nodes.
+if ip link show "$IFACE_WG" >/dev/null 2>&1; then
+  log "wg interface $IFACE_WG detected: allowing $IFACE_WG <-> bat0 forwarding..."
+  sudo nft add rule inet meshgw forward iifname "$IFACE_WG" oifname "bat0" accept
+  sudo nft add rule inet meshgw forward iifname "bat0" oifname "$IFACE_WG" accept
+else
+  log "wg interface $IFACE_WG not found (skipping VPN<->mesh forward rules)."
+fi
+
 sudo nft add chain inet meshgw postrouting '{ type nat hook postrouting priority srcnat; }'
 sudo nft add rule  inet meshgw postrouting oifname "$IFACE_UPLINK" masquerade
 
 log "DONE (King GW)."
-echo "  Mesh:  $SSID @ ${FREQ_MHZ}MHz on $IFACE_MESH"
-echo "  bat0:  $GW_IP_CIDR"
-echo "  Uplink: $IFACE_UPLINK (must have real internet)"
+echo "  Mesh:    $SSID @ ${FREQ_MHZ}MHz on $IFACE_MESH"
+echo "  bat0:    $GW_IP_CIDR"
+echo "  Uplink:  $IFACE_UPLINK (must have real internet)"
+echo "  VPN IF:  $IFACE_WG (forwarding to mesh if present)"
 echo
 echo "Verify:"
 echo "  iw dev $IFACE_MESH info | grep -i type"
 echo "  ip -br addr show bat0 $IFACE_UPLINK"
+echo "  sudo nft list table inet meshgw"
 echo "  sudo batctl o"
 echo "  sudo batctl gwl"
