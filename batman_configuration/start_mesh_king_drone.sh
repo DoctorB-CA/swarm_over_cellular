@@ -4,15 +4,16 @@ set -euo pipefail
 # ==========================================================
 # DRONE 1 ("King") — Start IBSS + batman-adv AND become GW
 # - wlan0: IBSS mesh + batman-adv (bat0)
-# - wlan1: stays normal (internet uplink via DHCP / NetworkManager / etc)
+# - ppp0/wlan1: stays normal (internet uplink via DHCP / NetworkManager / etc)
 # - bat0: 10.0.0.1/24
-# - NAT:  bat0 -> wlan1 (nftables)
+# - NAT:  bat0 -> ppp0/wlan1 (nftables)
 # - VPN:  allow forwarding between wg0 <-> bat0 (so PC can reach mesh)
 # ==========================================================
 
 # ---- fixed config (edit only if your names differ)
 IFACE_MESH="${IFACE_MESH:-wlan0}"
-IFACE_UPLINK="${IFACE_UPLINK:-wlan1}"
+#IFACE_UPLINK="${IFACE_UPLINK:-wlan1}"  <- if you using wlan1 and not cellular (ppp0)
+IFACE_UPLINK="${IFACE_UPLINK:-ppp0}"
 IFACE_WG="${IFACE_WG:-wg0}"
 
 SSID="${SSID:-call-code-mesh}"
@@ -30,7 +31,7 @@ command -v iw      >/dev/null || { echo "Missing: iw      (sudo apt install -y i
 command -v batctl  >/dev/null || { echo "Missing: batctl  (sudo apt install -y batctl)"; exit 1; }
 command -v nft     >/dev/null || { echo "Missing: nft     (sudo apt install -y nftables)"; exit 1; }
 
-# ---- keep uplink alive (wlan1), detach only wlan0 from managers
+# ---- keep uplink alive (ppp0/wlan1), detach only wlan0 from managers
 log "Detaching $IFACE_MESH from DHCP managers (keeping $IFACE_UPLINK untouched)..."
 if command -v dhcpcd >/dev/null 2>&1; then
   sudo dhcpcd -k "$IFACE_MESH" 2>/dev/null || true
