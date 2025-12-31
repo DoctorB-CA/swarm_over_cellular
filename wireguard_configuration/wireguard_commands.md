@@ -14,8 +14,8 @@ sudo systemctl stop wg-quick@wg0
 # Restart
 sudo systemctl restart wg-quick@wg0
 
-# Enable at boot + start now
-sudo systemctl enable --now wg-quick@wg0
+# Enable at boot
+sudo systemctl enable wg-quick@wg0
 
 # Disable at boot (doesn't stop it)
 sudo systemctl disable wg-quick@wg0
