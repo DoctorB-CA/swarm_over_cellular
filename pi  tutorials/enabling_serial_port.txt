@@ -1,0 +1,8 @@
+sudo raspi-config
+# go to Interface options
+# go to Seraial Port
+# No
+# yes
+sudo reboot #or if its ask you to reboot: yes
+#The serial port device name will be /dev/serial0
+# creadit: https://forums.raspberrypi.com/viewtopic.php?t=213133 
