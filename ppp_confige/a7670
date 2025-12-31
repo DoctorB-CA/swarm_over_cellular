@@ -1,0 +1,19 @@
+/dev/serial0 115200
+connect "/usr/sbin/chat -v -f /etc/ppp_scripts/a7670-connect"
+disconnect "/usr/sbin/chat -v -f /etc/ppp_scripts/a7670-disconnect"
+
+noauth
+defaultroute
+replacedefaultroute
+usepeerdns
+persist
+nodetach
+debug
+
+local
+lock
+
+novj
+novjccomp
+nobsdcomp
+nodeflate
