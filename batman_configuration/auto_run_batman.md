@@ -28,19 +28,22 @@ sudo nano /etc/systemd/system/mesh-drone.service
 
 Paste this:
 
-```ini
+```
 [Unit]
-Description=Start BATMAN mesh (normal drone)
-After=network-online.target
-Wants=network-online.target
+Description=Start BATMAN mesh (king drone)
+Wants=ppp-a7670.service network-online.target
+After=ppp-a7670.service network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/home/drone1/start_mesh_normanl_drone.sh
+# Wait up to 90s for ppp0 to exist
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 90); do ip link show ppp0 >/dev/null 2>&1 && exit 0; sleep 1; done; echo "ppp0 not found"; exit 1'
+ExecStart=/home/drone1/start_mesh_king_drone.sh
 RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target
+
 ```
 
 > If your home is not `/home/drone1`, replace the `ExecStart=` path with the output of `echo $HOME`.
