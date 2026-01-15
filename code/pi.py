@@ -16,6 +16,7 @@ from typing import Optional, Tuple
 # Type alias
 Addr = Tuple[str, int]
 
+# get the ip of the drone (well actuly the pi in the mesh)
 def get_bat0_ip():
     """Get IP address from bat0 interface"""
     try:
@@ -26,7 +27,7 @@ def get_bat0_ip():
         print(f"[ERROR] Could not get bat0 IP: {e}")
         print("[ERROR] Falling back to default 10.0.0.1")
         return "10.0.0.1"
-
+# drone number 2 is 10.0.0.2 easy
 def get_drone_number_from_ip(ip):
     """Extract drone number from last octet of IP (x.x.x.y -> y)"""
     try:
@@ -54,17 +55,18 @@ TELLO_DEV = "wlan1"        # Force tello traffic out wlan1
 VIDEO_PORT = 11110 + DRONE_NUMBER  # Each drone uses different port (11111, 11112, 11113...)
 TELLO_VIDEO_PORT = 11111  # Tello video stream port
 
-SO_BINDTODEVICE = 25
+SO_BINDTODEVICE = 25 # ?
 
 # Global variables
-last_pc_addr = None  # Track PC address for video forwarding
+last_pc_addr = None  # Track PC address for video forwarding : make pc addr to globel. not hard coded.
 
+# creating soket to pc. dah
 def create_pc_socket() -> socket.socket:
     """Create socket to listen for PC commands"""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.bind((LISTEN_IP, LISTEN_PORT))
     return s
-
+#creating socket to the drone
 def create_tello_socket() -> socket.socket:
     """Create socket for Tello communication - bound to wlan1 interface"""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -73,6 +75,8 @@ def create_tello_socket() -> socket.socket:
     s.bind(("0.0.0.0", 0))
     return s
 
+
+# ----- main loop ------------
 def forward_loop(s_pc: socket.socket, s_tello: socket.socket) -> None:
     """Main forwarding loop - bidirectional PC <-> Tello"""
     global last_pc_addr
@@ -82,7 +86,7 @@ def forward_loop(s_pc: socket.socket, s_tello: socket.socket) -> None:
     
     while True:
         # Wait for data on either socket
-        readable, _, _ = select.select([s_pc, s_tello], [], [], 1.0)
+        readable, _, _ = select.select([s_pc, s_tello], [], [], 1.0) # _,_,_, = read_socks, write_socks, ready-to-write
         
         for sock in readable:
             if sock == s_pc:
@@ -102,10 +106,13 @@ def forward_loop(s_pc: socket.socket, s_tello: socket.socket) -> None:
                 if last_pc_addr:
                     s_pc.sendto(data, last_pc_addr)
                     print(f"[PI -> PC] Forwarded to {last_pc_addr}: {response}")
+# ----------------------------------
 
+#video thread
 def forward_video():
     """
-    Thread to continuously receive video from Tello and forward to PC
+    Simple UDP forwarding: Tello video -> PC port 11111
+    Just forwards raw UDP packets as-is
     """
     global last_pc_addr
     
@@ -113,7 +120,7 @@ def forward_video():
     
     # Create socket for receiving video from Tello
     video_receive_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    video_receive_sock.bind(('', TELLO_VIDEO_PORT))  # Listen on all interfaces
+    video_receive_sock.bind(('', TELLO_VIDEO_PORT))
     
     # Create socket for sending video to PC
     video_send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -126,23 +133,23 @@ def forward_video():
     while True:
         try:
             # Receive video packet from Tello
-            data, addr = video_receive_sock.recvfrom(2048)  # Larger buffer for video packets
+            data, addr = video_receive_sock.recvfrom(2048)
             
             packet_count += 1
-            if packet_count % 100 == 0:  # Log every 100 packets to avoid spam
+            if packet_count % 100 == 0:
                 print(f"[VIDEO] Forwarded {packet_count} packets")
             
             # Forward to PC if we know PC address
             if last_pc_addr:
-                # Use PC IP with our video port
                 video_addr = (last_pc_addr[0], VIDEO_PORT)
                 video_send_sock.sendto(data, video_addr)
-            
+                
         except Exception as e:
             print(f"[VIDEO ERROR] {e}")
             time.sleep(0.1)
 
 def main():
+    # -- printing -- 
     print(f"{'='*60}")
     print(f"PI MIDDLEMAN - COMMANDS & VIDEO")
     print(f"{'='*60}")
@@ -152,7 +159,8 @@ def main():
     print(f"Video Port (to PC): {VIDEO_PORT}")
     print(f"Tello: {TELLO_IP}:{TELLO_PORT} via {TELLO_DEV}")
     print(f"{'='*60}\n")
-    
+    # ------------------
+
     # Create sockets using original functions
     s_pc = create_pc_socket()
     s_tello = create_tello_socket()

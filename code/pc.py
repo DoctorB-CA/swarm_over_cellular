@@ -34,8 +34,11 @@ multicast_mode = False  # Whether multicast mode is active
 command_id = 0  # Incremental command ID
 video_group = set()  # Set of drone indices to show video from
 video_enabled = False  # Whether video display is enabled
-ffplay_processes = {}  # Dict of drone_idx -> ffplay subprocess
+ffplay_processes = {}  # Dict of drone_idx -> video thread
 
+#-------------------------------
+
+# in and out of the VIDEO SCREEN BY PRESSING v
 def toggle_video():
     """Toggle current drone in/out of video group"""
     global video_group, video_enabled
@@ -55,6 +58,7 @@ def toggle_video():
         video_enabled = False
     print()
 
+# in and out of the multicast BY PRESSING M "in and out, 15 minutes adventure"
 def toggle_multicast():
     """Toggle current drone in/out of multicast group"""
     global multicast_group, multicast_mode
@@ -74,14 +78,15 @@ def toggle_multicast():
         multicast_mode = False
     print()
 
+# move to the next drone if press "next"
 def switch_drone(direction):
     """Switch to next or previous drone"""
     global current_drone_index, pi_address
     
     if direction == 'next':
-        current_drone_index = (current_drone_index + 1) % len(PI_IPS)
+        current_drone_index = (current_drone_index + 1) % len(PI_IPS) #cyclic
     elif direction == 'prev':
-        current_drone_index = (current_drone_index - 1) % len(PI_IPS)
+        current_drone_index = (current_drone_index - 1) % len(PI_IPS) #cyclic
     
     pi_address = (PI_IPS[current_drone_index], PI_PORT)
     print(f"\n{'='*60}")
@@ -91,6 +96,8 @@ def switch_drone(direction):
     print(f"[SWITCH] Status{in_multicast}")
     print(f"{'='*60}\n")
 
+
+# send the commend to drone
 def send_command(command, wait_response=True, use_multicast=True):
     """
     Send a command to the drone(s) via Pi
@@ -109,9 +116,17 @@ def send_command(command, wait_response=True, use_multicast=True):
             sock.sendto(command.encode('utf-8'), target_address)
     else:
         # Send to current drone only
-        print(f"[C-ID:{command_id}] [DRONE {current_drone_index + 1}] '{command}'")
+        print(f"[C-ID:{command_id}] [DRONE {current_drone_index + 1}] '{command}'") 
         sock.sendto(command.encode('utf-8'), pi_address)
 
+
+
+# keep alive 
+def send_keep_alive():
+    pass
+
+
+# ----- tread of reciving message from drone --------
 def receive_responses():
     """Thread to continuously receive responses from drone"""
     global sock, running
@@ -128,93 +143,59 @@ def receive_responses():
             if running:
                 print(f"[ERROR] Receiving: {e}")
 
-def display_video():
-    """Thread to manage ffplay video windows"""
-    global running, video_enabled, current_drone_index, video_group, ffplay_processes
+# dynamic sdp file
+def create_sdp_file(drone_idx, video_port):
+    """Create SDP file for Tello video stream from template"""
+    import os
     
-    print("[VIDEO] Video manager thread started")
-    time.sleep(2)
+    # Try to read template, fallback to inline if not found
+    template_path = os.path.join(os.path.dirname(__file__), 'tello_template.sdp')
+    
+    try:
+        with open(template_path, 'r') as f:
+            sdp_content = f.read()
+        # Replace placeholders
+        sdp_content = sdp_content.replace('{DRONE_NUM}', str(drone_idx + 1))
+        sdp_content = sdp_content.replace('{VIDEO_PORT}', str(video_port))
+    except FileNotFoundError:
+        # Fallback to inline SDP
+        sdp_content = f"""v=0
+o=- 0 0 IN IP4 {PC_IP}
+s=Tello Drone {drone_idx + 1}
+c=IN IP4 {PC_IP}
+t=0 0
+a=tool:libavformat
+m=video {video_port} RTP/AVP 96
+b=AS:200
+a=rtpmap:96 H264/90000
+a=fmtp:96 packetization-mode=1
+"""
+    
+    sdp_filename = f"/tmp/tello_drone_{drone_idx + 1}.sdp"
+    with open(sdp_filename, 'w') as f:
+        f.write(sdp_content)
+    
+    return sdp_filename
+
+#---- tread of viedo, usless fo now ------
+def display_video():
+    """Thread to manage video - currently just placeholder"""
+    global running, video_enabled
+    
+    print("[VIDEO] Video manager thread started (no display)")
     
     while running:
-        try:
-            if not video_enabled or len(video_group) == 0:
-                time.sleep(0.5)
-                continue
-            
-            # Start ffplay for drones in video_group that don't have a process
-            for drone_idx in video_group:
-                if drone_idx not in ffplay_processes:
-                    video_port = 11110 + (drone_idx + 1)
-                    drone_name = f"Drone {drone_idx + 1}"
-                    
-                    print(f"[VIDEO] Starting ffplay for {drone_name} on port {video_port}")
-                    
-                    # Launch ffplay with window title and Tello-optimized settings
-                    cmd = [
-                        'ffplay',
-                        '-f', 'h264',                 # Force H.264 format
-                        '-probesize', '8192',         # Increased probe size
-                        '-analyzeduration', '1000000', # 1 second analysis
-                        '-fflags', 'nobuffer',
-                        '-flags', 'low_delay',
-                        '-framedrop',
-                        '-infbuf',                    # Infinite buffer
-                        '-window_title', drone_name,
-                        '-i', f'udp://{PC_IP}:{video_port}?overrun_nonfatal=1&fifo_size=500000'
-                    ]
-                    
-                    try:
-                        print(f"[VIDEO] Command: {' '.join(cmd)}")
-                        process = subprocess.Popen(
-                            cmd
-                            # Removed output suppression to see ffplay errors
-                        )
-                        ffplay_processes[drone_idx] = process
-                        print(f"[VIDEO] {drone_name} ffplay process started (PID: {process.pid})")
-                    except Exception as e:
-                        print(f"[VIDEO ERROR] Failed to start ffplay for {drone_name}: {e}")
-            
-            # Stop ffplay for drones no longer in video_group
-            for drone_idx in list(ffplay_processes.keys()):
-                if drone_idx not in video_group:
-                    process = ffplay_processes[drone_idx]
-                    process.terminate()
-                    try:
-                        process.wait(timeout=2)
-                    except:
-                        process.kill()
-                    del ffplay_processes[drone_idx]
-                    print(f"[VIDEO] Drone {drone_idx + 1} video window closed")
-            
-            # Check if any processes died
-            for drone_idx in list(ffplay_processes.keys()):
-                if ffplay_processes[drone_idx].poll() is not None:
-                    print(f"[VIDEO] Drone {drone_idx + 1} ffplay window closed by user")
-                    del ffplay_processes[drone_idx]
-                    video_group.discard(drone_idx)
-            
-            time.sleep(0.5)
-            
-        except Exception as e:
-            print(f"[VIDEO ERROR] {e}")
-            time.sleep(0.5)
+        time.sleep(1)
     
-    # Cleanup - kill all ffplay processes
-    print("[VIDEO] Closing all video windows...")
-    for drone_idx, process in list(ffplay_processes.items()):
-        process.terminate()
-        try:
-            process.wait(timeout=2)
-        except:
-            process.kill()
-    ffplay_processes.clear()
     print("[VIDEO] Video manager thread closed")
+# -----------------------
 
+# transtale + chekcing if flying
 def process_key(key_command):
     """Process a key command and send to drone"""
     global translator, is_flying
     
-    drone_cmd = translator.translate(key_command)
+    drone_cmd = translator.translate(key_command) 
     
     if drone_cmd:
         send_command(drone_cmd, wait_response=False)
@@ -226,8 +207,10 @@ def process_key(key_command):
     else:
         print(f"[WARN] Unknown command: {key_command}")
 
+# mega print:
 def print_controls():
-    """Print keyboard controls"""
+    """Print keyboard control
+                print(f"[TELLO -> PI] Received: {response}")s"""
     print("\n" + "="*60)
     print("KEYBOARD CONTROLS")
     print("="*60)
@@ -284,6 +267,8 @@ def print_controls():
         print(f"Command Target: Current drone only")
     print("="*60 + "\n")
 
+
+# ---- tread of controling ------
 def keyboard_control():
     """Main keyboard control loop"""
     global running, is_flying
@@ -319,30 +304,30 @@ def keyboard_control():
             if not user_input:
                 continue
             
-            if user_input == 'help':
+            elif user_input == 'help':
                 print_controls()
                 continue
             
-            if user_input == 'n':
+            elif user_input == 'n':
                 switch_drone('next')
                 continue
             
-            if user_input == 'p':
+            elif user_input == 'p':
                 switch_drone('prev')
                 continue
             
-            if user_input == 'm':
-                toggle_multicast()
+            elif user_input == 'm':
+                toggle_multicast()    
                 continue
             
-            if user_input == 'v':
+            elif user_input == 'v':
                 toggle_video()
                 if len(video_group) == 1:
                     print("[VIDEO] Sending 'streamon' command...")
                     process_key('streamon')
                 continue
             
-            if user_input == 'x':
+            elif user_input == 'x':   #what is this?
                 was_last = len(video_group) == 1 and current_drone_index in video_group
                 toggle_video()
                 if was_last and len(video_group) == 0:
@@ -350,7 +335,7 @@ def keyboard_control():
                     send_command('streamoff', wait_response=False)
                 continue
             
-            if user_input == 'q' or user_input == 'quit':
+            elif user_input == 'q' or user_input == 'quit':
                 print("\n[INFO] Shutting down...")
                 if is_flying:
                     print("[INFO] Landing drone first...")
@@ -359,7 +344,7 @@ def keyboard_control():
                 running = False
                 break
             
-            if user_input in cmd_map:
+            elif user_input in cmd_map:  # normal keys
                 key_cmd = cmd_map[user_input]
                 process_key(key_cmd)
             else:
@@ -371,23 +356,24 @@ def keyboard_control():
             break
         except Exception as e:
             print(f"[ERROR] {e}")
+# ----------------------
 
+# ---- the main thread -----------
 def main():
     global sock, pi_address, translator, running
-    
-    translator = DroneTranslator(drone_type=DRONE_TYPE)
-    
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # creating soket IP4 AND UDP
     sock.bind((PC_IP, PC_PORT))
     
     pi_address = (PI_IPS[current_drone_index], PI_PORT)
-    
+    translator = DroneTranslator(drone_type=DRONE_TYPE)
+    # -- printing  staf --
     print(f"\n{'='*60}")
     print(f"TELLO DRONE KEYBOARD CONTROLLER")
     print(f"{'='*60}")
     print(f"PC: {PC_IP}:{PC_PORT}")
     print(f"Available Drones: {len(PI_IPS)}")
-    for i, ip in enumerate(PI_IPS):
+    for i, ip in enumerate(PI_IPS): # index + item in list
         active = " <- ACTIVE" if i == current_drone_index else ""
         in_group = " [M]" if i in multicast_group else ""
         print(f"  Drone {i+1}: {ip}:{PI_PORT}{active}{in_group}")
@@ -397,6 +383,7 @@ def main():
     else:
         print(f"Multicast: INACTIVE")
     print(f"{'='*60}\n")
+    # --------------------------
     
     response_thread = threading.Thread(target=receive_responses, daemon=True)
     response_thread.start()
@@ -405,6 +392,7 @@ def main():
     video_thread.start()
     
     try:
+        # -- printing staff --
         print("[INIT] Initializing all drones...")
         for i, ip in enumerate(PI_IPS):
             target_address = (ip, PI_PORT)
@@ -419,6 +407,9 @@ def main():
         time.sleep(1)
         
         print_controls()
+        # -----------------
+
+        # inputing threads: (keyboard thread is == main thread ?)
         keyboard_control()
     
     except Exception as e:
@@ -433,6 +424,6 @@ def main():
         
         print("[SHUTDOWN] Closing...")
         sock.close()
-
+# -------------------------------
 if __name__ == "__main__":
     main()
