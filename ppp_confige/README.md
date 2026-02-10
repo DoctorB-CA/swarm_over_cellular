@@ -1,6 +1,7 @@
 # A7670 PPP Setup (Raspberry Pi) — File Bundle
 
 This bundle creates a PPP (ppp0) internet connection over a SIMCom A7670/A76xx LTE modem connected on UART **/dev/serial0** at **115200**.
+for higher bandwith (and for video you need) see the the higher_bandwidth dir, after you finish this readme.
 
 It includes:
 - Chat scripts: `a7670-connect`, `a7670-disconnect`
