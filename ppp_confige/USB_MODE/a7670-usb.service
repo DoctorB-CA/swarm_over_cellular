@@ -1,0 +1,14 @@
+[Unit]
+Description=A7670E USB High-Speed Data (ECM/RNDIS) bring-up
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/a7670.env
+ExecStart=/usr/local/sbin/a7670-usb-up.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

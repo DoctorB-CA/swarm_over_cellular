@@ -1,0 +1,3 @@
+# Optional: start the service when the modem is plugged in
+# You can tighten this rule by adding ATTR{idVendor} / ATTR{idProduct} once you know them from `lsusb`.
+ACTION=="add", SUBSYSTEM=="usb", TAG+="systemd", ENV{SYSTEMD_WANTS}+="a7670-usb.service"
